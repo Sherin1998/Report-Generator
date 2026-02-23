@@ -45,8 +45,6 @@ MANIFEST
 # Project specific
 output/
 *.pdf
-*.xlsx
-data/fragrance_dataset_100.xlsx
 
 # Cache
 .cache/
