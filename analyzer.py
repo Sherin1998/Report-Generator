@@ -1,55 +1,94 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
+import pandas as pd
 
 
-def generate_charts(df, plan):
+CARDINALITY_THRESHOLD = 15
+
+
+def generate_charts(df):
 
     os.makedirs("output", exist_ok=True)
-
     generated = []
 
-    for chart in plan["charts"]:
+    df.columns = df.columns.str.strip()
 
-        chart_type = chart["chart_type"]
-        columns = chart["columns"]
-        title = chart["title"]
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
 
-        plt.figure()
+    # 🔥 Filter high-cardinality categorical columns
+    filtered_categorical = [
+        col for col in categorical_cols
+        if df[col].nunique() <= CARDINALITY_THRESHOLD
+    ]
 
-        if chart_type == "line":
-            df[columns].plot()
+    columns = numeric_cols + filtered_categorical
 
-        elif chart_type == "bar":
-            df[columns[0]].value_counts().plot(kind="bar")
+    print("Using columns for plotting:", columns)
 
-        elif chart_type == "histogram":
-            df[columns[0]].plot(kind="hist", bins=20)
+    for i in range(len(columns)):
+        col1 = columns[i]
 
-        elif chart_type == "scatter" and len(columns) >= 2:
-            plt.scatter(df[columns[0]], df[columns[1]])
-            plt.xlabel(columns[0])
-            plt.ylabel(columns[1])
+        for j in range(i + 1, len(columns)):
+            col2 = columns[j]
 
-        elif chart_type == "box":
-            df[columns].plot(kind="box")
+            plt.figure(figsize=(8, 5))
 
-        elif chart_type == "heatmap":
-            corr = df.select_dtypes(include="number").corr()
-            sns.heatmap(corr, annot=True, cmap="coolwarm")
-            plt.xticks(rotation=90)
-            plt.yticks(rotation=0)
+            try:
 
-        plt.title(title)
+                # ===============================
+                # 1️⃣ NUMERIC vs NUMERIC → SCATTER
+                # ===============================
+                if col1 in numeric_cols and col2 in numeric_cols:
+                    sns.scatterplot(data=df, x=col1, y=col2)
+                    chart_type = "scatter"
 
-        file_path = f"output/{title.replace(' ', '_')}.png"
-        plt.savefig(file_path)
-        plt.close()
+                # ===============================
+                # 2️⃣ CATEGORICAL vs CATEGORICAL → BAR
+                # ===============================
+                elif col1 in filtered_categorical and col2 in filtered_categorical:
+                    cross_tab = pd.crosstab(df[col1], df[col2])
+                    cross_tab.plot(kind="bar", stacked=True)
+                    chart_type = "bar"
 
-        generated.append({
-            "title": title,
-            "path": file_path,
-            "columns": columns
-        })
+                # ===============================
+                # 3️⃣ NUMERIC + CATEGORICAL → PIE
+                # ===============================
+                elif (col1 in numeric_cols and col2 in filtered_categorical) or \
+                     (col2 in numeric_cols and col1 in filtered_categorical):
+
+                    cat_col = col1 if col1 in filtered_categorical else col2
+                    counts = df[cat_col].value_counts()
+
+                    counts.plot(kind="pie", autopct='%1.1f%%')
+                    plt.ylabel("")
+                    chart_type = "pie"
+
+                else:
+                    plt.close()
+                    continue
+
+                title = f"{col1} vs {col2}"
+                plt.title(title)
+                plt.xticks(rotation=45)
+                plt.tight_layout()
+
+                file_path = f"output/{col1}_vs_{col2}.png"
+                file_path = file_path.replace(" ", "_")
+
+                plt.savefig(file_path)
+                plt.close()
+
+                generated.append({
+                    "title": title,
+                    "chart_type": chart_type,
+                    "columns": [col1, col2],
+                    "path": file_path
+                })
+
+            except Exception as e:
+                print(f"Skipping {col1} vs {col2}: {e}")
+                plt.close()
 
     return generated

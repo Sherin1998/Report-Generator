@@ -1,4 +1,21 @@
 """Report builder module for constructing and formatting reports."""
+import hashlib
+from hashlib import md5 as hashlib_md5
+
+# Patch for reportlab compatibility with Python 3.9+
+try:
+    from hashlib import md5
+    original_md5 = md5
+    
+    def patched_md5(*args, **kwargs):
+        # Remove 'usedforsecurity' parameter if present
+        kwargs.pop('usedforsecurity', None)
+        return hashlib_md5(*args, **kwargs)
+    
+    hashlib.md5 = patched_md5
+except:
+    pass
+
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
